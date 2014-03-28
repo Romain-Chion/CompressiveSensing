@@ -12,9 +12,10 @@ o = 1;          % Integer for optimisation choice
 a = 80;         % Data sampled percentage
 l = 0.5;        % Lambda parameter (CVX)
 sp = 30;        % Sparcity parameter (Cosamp)
-n = 0;          % Noise amplitude
-b = 0;          % Blur amplitude
-check = 0;      % Continuous launch
+n = 0;          % Noise variance
+b = 0;          % Blur standard deviation
+boolL = 0;      % Continuous launch
+boolM = 0;      % Same sampling matix
 
 % loading saved parameters
             try
@@ -33,9 +34,11 @@ check = 0;      % Continuous launch
             catch
                 disp('# parameters loading failed');
             end
+
 % initialize window
 scrsz=get(0,'ScreenSize');
-figure('Name','Compressive Sensing Interface','NumberTitle','off',...
+di=dir('interface.m');
+figure('Name',['Compressive Sensing Interface (v1.2 ',datestr(di.date,'dd-mm-yyyy'),')'],'NumberTitle','off',...
               'MenuBar','none','Resize','off',...
               'Position',[(scrsz(3)-800)/2 (scrsz(4)-600)/2 800 600]);
 
@@ -47,8 +50,6 @@ uicontrol('Style','text','Position', [60 565 200 25],...
 hps=uipanel('Title','Sampling setting','FontSize',11,'Position',[.0 .62 .4 .3]);
 uicontrol('Parent',hps,'Style','text','Position',[10 135 145 20],...
               'String','Sampling method','FontWeight','bold');
-% uicontrol('Style','popupmenu','Value',s,'String','Random|Column|Line',...
-%               'Parent',hps,'Position',[10 70 145 20], 'Callback', @samplMethod);
 hgs = uibuttongroup('Parent',hps,'BorderType','none','Position',[0 0 .5 1]);
 set(hgs,'SelectionChangeFcn',@samplMethod);
 uicontrol('Style','radiobutton','String','Random','Tag','s1',...
@@ -66,8 +67,6 @@ uicontrol('Style','edit','Max',1,'String',a,...
 hpb=uipanel('Title','Basis setting','FontSize',11,'Position',[.0 .40 .4 .20]);
 uicontrol('Parent',hpb,'Style','text','Position', [10 75 145 20],...
                'String','Basis representation','FontWeight','bold');
-% uicontrol('Style', 'popupmenu','Value',r,'String','Fourier|Curvlet',...
-%               'Parent',hpb,'Position', [10 40 145 20], 'Callback', @basisMethod);
 hgb = uibuttongroup('Parent',hpb,'BorderType','none','Position',[0 0 .5 1]);
 set(hgb,'SelectionChangeFcn',@basisMethod);
 uicontrol('Style','radiobutton','String','Fourier','Tag','b1',...
@@ -79,8 +78,6 @@ uicontrol('Style','radiobutton','String','Curvlet','Tag','b2',...
 hpo=uipanel('Title','Optimisation setting','FontSize',11,'Position',[.0 .08 .4 .3]);
 uicontrol('Parent',hpo,'Style','text','Position',[10 135 145 20],...
               'String','Optimisation method','FontWeight','bold');
-% uicontrol('Style','popupmenu','Value',o,'String','Convex (CVX)|Greedy (Cosamp)|Baysian',...
-%               'Parent',hpo,'Position',[10 70 145 20],'Callback', @);
 hgo = uibuttongroup('Parent',hpo,'BorderType','none','Position',[0 0 .5 1]);
 uicontrol('Style','radiobutton','String','Convex (CVX)','Tag','o1',...
     'Value',o==1,'pos',[20 105 145 20],'parent',hgo);
@@ -96,7 +93,7 @@ if o==1
               'Parent',hpo,'Position',[165 70 145 20],'Callback', @getLambda);
 elseif o==2
     uicontrol('Parent',hpo,'Style','text','Position', [165 135 145 20],...
-              'String','Sparcity Coefficient','FontWeight','bold');
+              'String','Sparcity coefficient (%)','FontWeight','bold');
     uicontrol('Style','edit','Max',1,'String',sp,...
               'Parent',hpo,'Position', [165 70 145 20],'Callback', @getSparcity);
 end
@@ -138,20 +135,23 @@ uicontrol('Parent',hpnb,'Style','pushbutton','FontSize',10,'String','Crop Pictur
 
 % set up noise and blur interface
 uicontrol('Parent',hpnb,'Style','text','Position', [50 30 145 20],...
-              'String','Noise amplitude','FontWeight','bold');
+              'String','Noise variance','FontWeight','bold');
 uicontrol('Parent',hpnb,'Style','edit','Max',1,'String',n,...
               'Position', [60 10 145 20],'Callback', @getNoise);
-uicontrol('Parent',hpnb,'Style','text','Position', [255 30 145 20],...
-              'String','Blur amplitude','FontWeight','bold');
+uicontrol('Parent',hpnb,'Style','text','Position', [265 30 145 20],...
+              'String','Blur standard deviation','FontWeight','bold');
 uicontrol('Parent',hpnb,'Style','edit','Max',1,'String',b,...
               'Position', [265 10 145 20],'Callback', @getBlur);
 
 % set up compresive sensing launcher
 uicontrol('Style','pushbutton','FontSize',12,'String','GO!',...
-              'Position', [550 10 100 30],'Callback', @mainLauncher);
-uicontrol('Style','checkbox','Position', [510 17 15 15],'Callback', @checkLauncher);
-uicontrol('Style','text','Position', [390 17 120 15],...
+              'Position', [670 10 100 30],'Callback', @mainLauncher);
+uicontrol('Style','checkbox','Position', [615 17 15 15],'Callback', @checkLauncher);
+uicontrol('Style','text','Position', [495 17 120 15],...
               'String','clean previous launch');
+uicontrol('Style','checkbox','Position', [440 17 15 15],'Callback', @checkMatrix);
+uicontrol('Style','text','Position', [360 17 80 15],...
+              'String','keep phi matrix');
           
 % set up call back functions
 
@@ -172,9 +172,14 @@ uicontrol('Style','text','Position', [390 17 120 15],...
               'Parent',hpo,'Position',[165 70 145 20],'Callback', @getLambda);
         elseif o==2
             uicontrol('Parent',hpo,'Style','text','Position', [165 135 145 20],...
-              'FontWeight','bold','String','Sparcity Coefficient');
+              'FontWeight','bold','String','Sparcity coefficient (%)');
             uicontrol('Style','edit','Max',1,'String',sp,...
               'Parent',hpo,'Position', [165 70 145 20],'Callback', @getSparcity);
+        elseif o==3
+            uicontrol('Parent',hpo,'Style','text','Position', [165 135 145 20],...
+              'FontWeight','bold','String','No parameter');
+            uicontrol('Style','edit','Max',1,...
+              'Parent',hpo,'Position',[165 70 145 20],'Enable','off');
         end
     end
     function basisMethod(hObj,eventdata)
@@ -203,6 +208,7 @@ uicontrol('Style','text','Position', [390 17 120 15],...
             a=getter;
         else
             sprintf('Please enter value between 0 and 100')
+            popUp('Please enter value between 0 and 100');
         end
     end
     function getLambda(hObj,event)
@@ -211,14 +217,16 @@ uicontrol('Style','text','Position', [390 17 120 15],...
             l=getter;
         else
             sprintf('Please enter value between 0 and 1')
+            popUp('Please enter value between 0 and 1');
         end
     end
     function getSparcity(hObj,event)
         getter = str2num(get(hObj,'String'));
-        if (getter>=1&&getter<=100)
+        if (getter>=0&&getter<=50)
             sp=getter;
         else
-            sprintf('Please enter value between 1 and 100')
+            sprintf('Please enter value between 0 and 50')
+            popUp('Please enter value between 0 and 50');
         end
     end
     function getNoise(hObj,event)
@@ -227,28 +235,35 @@ uicontrol('Style','text','Position', [390 17 120 15],...
             n=getter;
         else
             sprintf('Please enter value between 0 and 1')
+            popUp('Please enter value between 0 and 1');
         end
     end
     function getBlur(hObj,event)
         getter = str2num(get(hObj,'String'));
-        if (getter>=0&&getter<=1)
+        if (getter>=0&&getter<=3)
             b=getter;
         else
-            sprintf('Please enter value between 0 and 1')
+            sprintf('Please enter value between 0 and 3')
+            popUp('Please enter value between 0 and 3');
         end
     end
     function saveParam(hObj,event)
         param=[s,r,o,a,l,sp,n,b];
         save('param', 'param');
     end
+    function popUp(text)
+        msgbox(text,'Parameter Error');
+    end
 
 % set up picture functions
     function getPicture(hObj,event)
-        [file_name, file_path] = uigetfile( ...
+        [name, path] = uigetfile( ...
            {'*.jpeg;*.jpg;*.bmp;*.tif;*.tiff;*.png;*.gif', ...
             'Image Files (JPEG, BMP, TIFF, PNG and GIF)'}, ...
-            'Select Images', 'multiselect', 'on');
-        if file_name
+            'Select Images', 'multiselect', 'off');
+        if name
+            file_name=name
+            file_path=path
             save('last_image', 'file_name');
             save('last_path', 'file_path');
             img=showPicture(file_path, file_name);
@@ -270,7 +285,7 @@ uicontrol('Style','text','Position', [390 17 120 15],...
         uicontrol('Parent',hpnb,'Style','text','Units','normalized','Position',[.05 .4 .45 .1],...
               'HorizontalAlignment','left','String',['Width: ',num2str(info.Width),'px       Height: ',...
               num2str(info.Height),'px']);
-        IMG = abs(fft2(img));
+        IMG = abs(fftshift(fft2(img)));
         mm = min(min(IMG));
         MM = max(max(IMG));
         A = floor(200*(IMG-mm)./(MM-mm));
@@ -286,13 +301,23 @@ uicontrol('Style','text','Position', [390 17 120 15],...
         end
     end
     function savePicture(hObj,event)
-        time=num2str(now*1000000,12);
-        file_name=['img_',time(4:11),'.png'];
-        file_path='';
-        imwrite(img,file_name);
-        disp(['# saved picture: ',file_name]);
-        save('last_image', 'file_name');
-        save('last_path', 'file_path');
+        [name,path,~] = uiputfile(...
+            {'*.*','All Files';...
+            '*.jpeg;*.jpg','Joint Photographic Experts Group (JPEG)';...
+            '*.bmp','Bitmap (BMP)';...
+            '*.tif;*.tiff','Tagged Image File Format (TIFF)';...
+            '*.png','Portable Network Graphics (PNG)';...
+            '*.gif','Graphics Interchange Format (GIF)'});            
+        try
+            imwrite(img,[path,name]);
+            disp(['# saved picture: ',name]);
+            file_name=name;
+            file_path=path;
+            save('last_image', 'file_name');
+            save('last_path', 'file_path');
+        catch
+            disp(['# saved picture: failed']);
+        end
     end
     function cropPicture(hObj,event)
         p = ginput(1); % Get the x and y corner coordinates as integers
@@ -313,13 +338,22 @@ uicontrol('Style','text','Position', [390 17 120 15],...
               'Position',[290 130 120 20],'String',['[x2 y2] = [',...
               num2str(pp(3)),' ',num2str(pp(4)),']']);
         subplot('Position',[0.4 0.4 0.6 0.6]);
-        imagesc(img(min(pp(2),pp(4)):max(pp(2),pp(4)),min(pp(1),pp(3)):max(pp(1),pp(3)))); colormap(gray); axis('off');
+        imgc=img(min(pp(2),pp(4)):max(pp(2),pp(4)),min(pp(1),pp(3)):max(pp(1),pp(3)));
+        imagesc(imgc); colormap(gray); axis('off');
+        SS = size(imgc);
+        IMG = abs(fftshift(fft2(imgc)));
+        mm = min(min(IMG));
+        MM = max(max(IMG));
+        A = floor(200*(IMG-mm)./(MM-mm));
+        uicontrol('Parent',hpnb,'Style','text','Units','normalized','Position',[.55 .5 .45 .1],...
+              'HorizontalAlignment','left','String',...
+              ['Sparcity: ',num2str(100*(1-nnz(A)/(SS(1)*SS(2)))),'%']);
         choice = questdlg('Crop the picture?', ...
             'Confirmation Box', ...
             'Yes','No','No');
         switch choice
             case 'Yes'
-                img = double(img(min(pp(2),pp(4)):max(pp(2),pp(4)),min(pp(1),pp(3)):max(pp(1),pp(3)),1));
+                img = double(imgc);
                 mm = min(min(img));
                 MM = max(max(img));
                 img = (img - mm)/(MM - mm);
@@ -329,24 +363,60 @@ uicontrol('Style','text','Position', [390 17 120 15],...
             case 'No'
                 subplot('Position',[0.4 0.4 0.6 0.6]);
                 imagesc(img); colormap(gray); axis('off');
+                SS = size(img);
+                IMG = abs(fftshift(fft2(img)));
+                mm = min(min(IMG));
+                MM = max(max(IMG));
+                A = floor(200*(IMG-mm)./(MM-mm));
+                uicontrol('Parent',hpnb,'Style','text','Units','normalized','Position',[.55 .5 .45 .1],...
+                    'HorizontalAlignment','left','String',...
+                    ['Sparcity: ',num2str(100*(1-nnz(A)/(SS(1)*SS(2)))),'%']);
             case ''
                 subplot('Position',[0.4 0.4 0.6 0.6]);
                 imagesc(img); colormap(gray); axis('off');
+                SS = size(img);
+                IMG = abs(fftshift(fft2(img)));
+                mm = min(min(IMG));
+                MM = max(max(IMG));
+                A = floor(200*(IMG-mm)./(MM-mm));
+                uicontrol('Parent',hpnb,'Style','text','Units','normalized','Position',[.55 .5 .45 .1],...
+                    'HorizontalAlignment','left','String',...
+                    ['Sparcity: ',num2str(100*(1-nnz(A)/(SS(1)*SS(2)))),'%']);
         end
     end
 
 % set up launcher function
     function checkLauncher(hObj,event)
-        check=get(hObj,'Value');
+        boolL=get(hObj,'Value');
+    end
+    function checkMatrix(hObj,event)
+        boolM=get(hObj,'Value');
+        if boolM
+        choice = questdlg('Generate new phi matrix?', ...
+            'Confirmation Box', ...
+            'Yes','No','No');
+        switch choice
+            case 'Yes'
+                [phi,~]=sampling(a/100,img,s);
+                save('phi','phi');
+            case 'No'
+            case ''
+        end
+        end
     end
     function mainLauncher(hObj,event)
         if file_name
+            disp('# main function');
             try
-                disp('# main function');
-                if check
-                    close();
+                if boolL
+                    while 1
+                        close('Compressive Sensing Output');
+                    end
                 end
-                main(img,a,s,o,n,l,sp);                   
+            catch
+            end
+            try
+                main(img,s,r,o,a,l,sp,n,b,boolM);                   
             catch merr
                 disp('# main function failed');
                 errordlg(sprintf( ...

@@ -1,4 +1,4 @@
-function [a,A] = optimisation_cosamp(u,phi,psi,N,s,perf)
+function [a,A] = optimisation_cosamp(u,phi,psi,N,sp)
 % NOTATIONS ADAPTEES DE L'ARTICLE "CoSaMP : Iterative signal recovery from incomplete and inaccurate samples"
 % x has a sparse representation in some orthnormal basis psi
 % x=psi*a
@@ -15,7 +15,7 @@ function [a,A] = optimisation_cosamp(u,phi,psi,N,s,perf)
 
 %% Algorithme d'optimisation
 % Définition des constantes
-% s = 1000; % Nombre de coefficients parcimonieux ( <N/2)
+s = floor(sp/100*N); % Nombre de coefficients parcimonieux ( <N/2)
 e = 0.001; % Critère d'arret sur la variation de l'erreur
 K = 30; % Nombre limite d'itérations
 
@@ -64,7 +64,5 @@ while k <= K && DNv > e
     
     disp(['Iteration #',sprintf('%d', k-1)]);
 end
-
-subplot('Position',[0.505 0.505 0.485 0.44]);
-plot((0:k-1),Nv);title('Residual Error');
+plot((0:k-1),Nv);xlabel('Iteration');ylabel('Residual Error');
 end

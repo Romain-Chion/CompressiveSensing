@@ -9,7 +9,6 @@ function [v,A]=optimisation_cvx(y,phi,psi,N,lambda)
 % x is the signal of interest, that is to say v here.
  
 %% Problème d'optimisation
-% cas sans bruit
 A = phi*psi;
 % lambda=0.5;
 
@@ -21,15 +20,19 @@ cvx_begin
     minimize( (1-lambda)*norm( A*v - y , 2) + lambda*norm( v , 1 ) )
 cvx_end
 diary off
+disp( [ '   v     = [ ', sprintf( '%7.4f ', v ), ']' ] );
+disp( 'Residual vector:' );
+disp( [ '   y-A*v = [ ', sprintf( '%7.4f ', y-A*v ), ']' ] );
+disp( ' ' );
 
 file = fopen('log.txt');
 str = textscan(file, '%s', 'Delimiter','|','HeaderLines',13);
-k=0
+k=0;
+Ny = str2num(str{1}{6});
 while str2num(str{1}{9*k+1})==k
-    Nv(k+1)=str2num(str{1}{9*k+6})
-    k=k+1
+    Nv(k+1)=str2num(str{1}{9*k+6})/Ny;
+    k=k+1;
 end
 fclose(file);
-subplot('Position',[0.505 0.505 0.485 0.44]);
-semilogy((0:k-1),Nv);title('Residual Error');
+semilogy((0:k-1),Nv);xlabel('Iteration');ylabel('Prime Dual Gap');
 end
